@@ -164,7 +164,9 @@ body::before{content:"";position:fixed;inset:-40vmax;pointer-events:none;
   letter-spacing:.22em;opacity:.85}
 .dvinyl .spindle{position:absolute;left:50%;top:50%;width:3.6%;height:3.6%;transform:translate(-50%,-50%);z-index:3;
   border-radius:50%;background:var(--bg);z-index:2;box-shadow:0 0 0 1px rgba(0,0,0,.5)}
-.dinfo .dmeta{margin:0;display:flex;flex-wrap:wrap;gap:8px}
+.dinfo .dtitle{font-family:var(--serif);font-weight:600;font-size:clamp(28px,4.4vmin,46px);line-height:1.08;letter-spacing:.01em}
+.dinfo .dartist{color:var(--muted);font-size:clamp(14px,2vmin,18px);margin-top:6px}
+.dinfo .dmeta{margin:18px 0 0;display:flex;flex-wrap:wrap;gap:8px}
 .dinfo .chip{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--brass-mid);
   border:1px solid var(--line);border-radius:999px;padding:6px 13px;background:rgba(20,18,15,.3)}
 .dnote{margin:22px 0 0;font-family:var(--serif);font-weight:500;font-size:clamp(18px,2.4vmin,23px);
@@ -235,6 +237,8 @@ body::before{content:"";position:fixed;inset:-40vmax;pointer-events:none;
       <div class="dvinyl" id="dVinyl"><div class="grooves"></div><div class="sheen"></div><div class="dlabel" id="dLabel"></div><div class="spindle"></div></div>
     </div>
     <div class="dinfo">
+      <h1 class="dtitle" id="dTitle"></h1>
+      <div class="dartist" id="dArtist"></div>
       <div class="dmeta" id="dChips"></div>
       <p class="dnote" id="dNote"></p>
       <div class="dtracks" id="dTracks"></div>
@@ -433,7 +437,7 @@ function setView(v){const list=v==="list";listview.classList.toggle("open",list)
 btnFlow.onclick=()=>setView("flow"); btnList.onclick=()=>setView("list");
 
 /* ---------- detail view ---------- */
-const detail=q("detail"),dArtBg=q("dArtBg"),dLabel=q("dLabel"),dGlow=q("dGlow"),dChips=q("dChips"),
+const detail=q("detail"),dArtBg=q("dArtBg"),dLabel=q("dLabel"),dGlow=q("dGlow"),dTitle=q("dTitle"),dArtist=q("dArtist"),dChips=q("dChips"),
       dNote=q("dNote"),dTracks=q("dTracks"),dPrev=q("dPrev"),dNext=q("dNext"),
       dVinyl=q("dVinyl"),dCover=q("dCover");
 
@@ -507,6 +511,8 @@ function openDetail(i,suppressFlightVinyl){
   dArtBg.style.backgroundImage="none";
   dArtBg.style.backgroundColor=a.pal[0]||"#221d1a";   // tinted fallback while art loads / if none
   dGlow.style.setProperty("--accent",a.pal[1]||a.pal[0]);
+  dTitle.textContent=a.title;
+  dArtist.textContent=a.artist;
   dChips.innerHTML=`<span class="chip">${GLABEL[a.genre]}</span><span class="chip">${a.year}</span>`;
   dNote.textContent=a.note||"";
   dTracks.innerHTML=`<div class="th">Tracklist</div><div class="note">Loading…</div>`;
