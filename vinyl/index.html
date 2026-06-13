@@ -408,8 +408,8 @@ function layout(){
 const mTitle=q("mTitle"),mArtist=q("mArtist"),mTag=q("mTag"),mNote=q("mNote"),prevBtn=q("prev"),nextBtn=q("next"),counter=q("counter");
 // on mobile, fit the note to 2 lines and append an inline "… More" that opens the detail
 function fillNote(text){
-  mNote.textContent=text;
-  if(!text||!window.matchMedia("(max-width:640px)").matches) return;   // desktop shows full note
+  mNote.textContent=text; mNote.onclick=null; mNote.style.cursor="";
+  if(!text) return;
   const lh=parseFloat(getComputedStyle(mNote).lineHeight), maxH=lh*2+1;
   if(mNote.scrollHeight<=maxH) return;                                 // already fits two lines
   const words=text.split(" "), tail='… <span class="more">More</span>';
@@ -419,7 +419,8 @@ function fillNote(text){
     mNote.innerHTML=cut(mid)+tail;
     if(mNote.scrollHeight<=maxH){best=mid;lo=mid+1}else{hi=mid-1}}
   mNote.innerHTML=cut(best)+tail;
-  mNote.querySelector(".more").onclick=()=>openDetailFromCard(current);
+  mNote.style.cursor="pointer";
+  mNote.onclick=()=>openDetailFromCard(current);                       // whole note opens the detail
 }
 function q(id){return document.getElementById(id)}
 
