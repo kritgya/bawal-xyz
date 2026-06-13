@@ -77,7 +77,7 @@ body::before{content:"";position:fixed;inset:-40vmax;pointer-events:none;
 .nav:disabled{opacity:.25;cursor:default}
 .nav svg{width:18px;height:18px}
 
-.counter{position:fixed;right:22px;bottom:22px;z-index:60;font-size:11px;letter-spacing:.18em;color:var(--muted)}
+.counter{position:fixed;left:50%;transform:translateX(-50%);bottom:14px;z-index:60;font-size:11px;letter-spacing:.18em;color:var(--muted)}
 .counter b{color:var(--ink);font-weight:600}
 
 .listview{position:fixed;inset:0;z-index:85;overflow-y:auto;background:var(--bg);padding:108px clamp(16px,6vw,120px) 80px;display:none}
@@ -96,8 +96,19 @@ body::before{content:"";position:fixed;inset:-40vmax;pointer-events:none;
 .row .a{color:var(--muted);font-size:13px;margin-top:2px}
 .row .g{font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--brass-mid);text-align:right;line-height:1.7}
 @media(max-width:640px){
+  .topbar{padding:12px 16px}
+  .wordmark .en{font-size:15px}
+  .filters{top:76px;gap:6px}
+  .filters button{font-size:10px;padding:6px 11px;letter-spacing:.1em}
   .nav.prev{left:8px}.nav.next{right:8px}
-  .card{width:min(72vw,300px)}
+  .nav{top:47%}
+  .card{width:min(66vw,270px);top:47%}
+  .meta{bottom:8%;max-width:90vw;width:90vw}
+  .meta .title{font-size:21px;line-height:1.12}
+  .meta .artist{font-size:14px}
+  .meta .tag{margin-top:10px}
+  .meta .mnote{font-size:15px;line-height:1.45;margin-top:8px;
+    display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
   .row{grid-template-columns:34px 52px 1fr}.row .g{display:none}.row .n{font-size:20px}.row .th{width:52px;height:52px}
 }
 
