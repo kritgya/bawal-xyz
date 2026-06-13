@@ -61,7 +61,9 @@ body::before{content:"";position:fixed;inset:-40vmax;pointer-events:none;
 @media (prefers-reduced-motion:reduce){.card,.disc{transition:none}}
 
 .meta{position:fixed;left:50%;bottom:6%;transform:translateX(-50%);z-index:60;text-align:center;max-width:min(620px,86vw)}
-.meta .tag{font-size:10px;letter-spacing:.24em;text-transform:uppercase;color:var(--brass-mid)}
+.meta .title{font-family:var(--serif);font-weight:600;font-size:clamp(22px,3.4vmin,36px);letter-spacing:.01em;line-height:1.12}
+.meta .artist{color:var(--muted);font-size:clamp(13px,1.8vmin,17px);margin-top:4px}
+.meta .tag{margin-top:12px;font-size:10px;letter-spacing:.24em;text-transform:uppercase;color:var(--brass-mid)}
 .meta .mnote{margin-top:12px;font-family:var(--serif);font-weight:500;
   font-size:clamp(16px,2.1vmin,21px);line-height:1.45;color:var(--ink);opacity:.92}
 .meta>*{transition:opacity .3s ease}
@@ -204,6 +206,8 @@ body::before{content:"";position:fixed;inset:-40vmax;pointer-events:none;
 
 <div class="stage" id="stage" aria-live="polite"></div>
 <div class="meta" id="meta">
+  <div class="title" id="mTitle"></div>
+  <div class="artist" id="mArtist"></div>
   <div class="tag" id="mTag"></div>
   <p class="mnote" id="mNote"></p>
 </div>
@@ -365,12 +369,14 @@ function layout(){
   });
   const a=view[current];
   if(!a)return;
+  mTitle.textContent=a.title;
+  mArtist.textContent=a.artist;
   mTag.textContent=GLABEL[a.genre]+" · "+a.year;
   mNote.textContent=a.note||"";
   prevBtn.disabled=current===0; nextBtn.disabled=current===view.length-1;
   counter.innerHTML=`<b>${current+1}</b> / ${view.length}`;
 }
-const mTag=q("mTag"),mNote=q("mNote"),prevBtn=q("prev"),nextBtn=q("next"),counter=q("counter");
+const mTitle=q("mTitle"),mArtist=q("mArtist"),mTag=q("mTag"),mNote=q("mNote"),prevBtn=q("prev"),nextBtn=q("next"),counter=q("counter");
 function q(id){return document.getElementById(id)}
 
 function go(i){if(i<0||i>=view.length||i===current)return;document.body.classList.add("fading");
