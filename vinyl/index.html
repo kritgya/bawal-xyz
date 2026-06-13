@@ -66,6 +66,8 @@ body::before{content:"";position:fixed;inset:-40vmax;pointer-events:none;
 .meta .tag{margin-top:12px;font-size:10px;letter-spacing:.24em;text-transform:uppercase;color:var(--brass-mid)}
 .meta .mnote{margin-top:12px;font-family:var(--serif);font-weight:500;
   font-size:clamp(16px,2.1vmin,21px);line-height:1.45;color:var(--ink);opacity:.92}
+.meta .more{color:var(--brass-mid);cursor:pointer;white-space:nowrap}
+.meta .more:hover{color:var(--brass-hi)}
 .meta>*{transition:opacity .3s ease}
 .fading .meta>*{opacity:0}
 
@@ -107,8 +109,7 @@ body::before{content:"";position:fixed;inset:-40vmax;pointer-events:none;
   .meta .title{font-size:21px;line-height:1.12}
   .meta .artist{font-size:14px}
   .meta .tag{margin-top:10px}
-  .meta .mnote{font-size:15px;line-height:1.45;margin-top:8px;
-    display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+  .meta .mnote{font-size:15px;line-height:1.45;margin-top:8px}
   .row{grid-template-columns:34px 52px 1fr}.row .g{display:none}.row .n{font-size:20px}.row .th{width:52px;height:52px}
 }
 
@@ -400,11 +401,26 @@ function layout(){
   mTitle.textContent=a.title;
   mArtist.textContent=a.artist;
   mTag.textContent=GLABEL[a.genre]+" · "+a.year;
-  mNote.textContent=a.note||"";
+  fillNote(a.note||"");
   prevBtn.disabled=current===0; nextBtn.disabled=current===view.length-1;
   counter.innerHTML=`<b>${current+1}</b> / ${view.length}`;
 }
 const mTitle=q("mTitle"),mArtist=q("mArtist"),mTag=q("mTag"),mNote=q("mNote"),prevBtn=q("prev"),nextBtn=q("next"),counter=q("counter");
+// on mobile, fit the note to 2 lines and append an inline "… More" that opens the detail
+function fillNote(text){
+  mNote.textContent=text;
+  if(!text||!window.matchMedia("(max-width:640px)").matches) return;   // desktop shows full note
+  const lh=parseFloat(getComputedStyle(mNote).lineHeight), maxH=lh*2+1;
+  if(mNote.scrollHeight<=maxH) return;                                 // already fits two lines
+  const words=text.split(" "), tail='… <span class="more">More</span>';
+  const cut=n=>esc(words.slice(0,n).join(" ").replace(/[\s.,;:!?—-]+$/,""));  // drop trailing punctuation
+  let lo=1,hi=words.length,best=1;
+  while(lo<=hi){const mid=(lo+hi)>>1;
+    mNote.innerHTML=cut(mid)+tail;
+    if(mNote.scrollHeight<=maxH){best=mid;lo=mid+1}else{hi=mid-1}}
+  mNote.innerHTML=cut(best)+tail;
+  mNote.querySelector(".more").onclick=()=>openDetailFromCard(current);
+}
 function q(id){return document.getElementById(id)}
 
 function go(i){if(i<0||i>=view.length||i===current)return;document.body.classList.add("fading");
