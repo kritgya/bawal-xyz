@@ -438,16 +438,31 @@ function go(i){
 prevBtn.onclick=()=>go(current-1); nextBtn.onclick=()=>go(current+1);
 window.addEventListener("keydown",e=>{if(detailOpen||listview.classList.contains("open"))return;if(e.key==="ArrowLeft")go(current-1);if(e.key==="ArrowRight")go(current+1)});
 
-let tx=null;
-window.addEventListener("touchstart",e=>tx=e.touches[0].clientX,{passive:true});
-window.addEventListener("touchend",e=>{if(tx===null)return;const dx=e.changedTouches[0].clientX-tx;if(Math.abs(dx)>48)go(current+(dx<0?1:-1));tx=null},{passive:true});
+let tx=null,ty=null;
+window.addEventListener("touchstart",e=>{tx=e.touches[0].clientX;ty=e.touches[0].clientY},{passive:true});
+window.addEventListener("touchend",e=>{
+  if(tx===null)return;
+  if(detailOpen||listview.classList.contains("open")){tx=ty=null;return}
+  const dx=e.changedTouches[0].clientX-tx, dy=e.changedTouches[0].clientY-ty;
+  if(Math.abs(dy)>Math.abs(dx)&&dy<-56) openDetailFromCard(current);   // swipe up → open detail
+  else if(Math.abs(dx)>48) go(current+(dx<0?1:-1));                    // horizontal swipe → navigate
+  tx=ty=null;
+},{passive:true});
 
-let wl=false,wa=0,wi=null;
+// trackpad: one action per physical gesture. wl locks after we act and only
+// releases once the gesture goes quiet (~180ms with no wheel events), so a
+// single momentum-y swipe can't skip several albums.
+let wl=false,wEnd=null;
 window.addEventListener("wheel",e=>{
-  if(listview.classList.contains("open"))return;
-  const d=Math.abs(e.deltaX)>Math.abs(e.deltaY)?e.deltaX:e.deltaY;
-  if(wl)return; wa+=d; clearTimeout(wi); wi=setTimeout(()=>wa=0,140);
-  if(Math.abs(wa)>50){go(current+(wa>0?1:-1));wa=0;wl=true;setTimeout(()=>wl=false,380)}
+  if(detailOpen||listview.classList.contains("open"))return;
+  clearTimeout(wEnd); wEnd=setTimeout(()=>wl=false,180);   // gesture considered over after a quiet gap
+  if(wl)return;
+  const ax=Math.abs(e.deltaX), ay=Math.abs(e.deltaY);
+  if(ay>ax*1.3){                                           // clearly vertical → open detail
+    if(ay>12){ wl=true; openDetailFromCard(current); }     // either direction, so it works regardless of natural-scroll setting
+  }else if(ax>10){                                         // horizontal → navigate one album
+    wl=true; go(current+(e.deltaX>0?1:-1));
+  }
 },{passive:true});
 
 /* ---------- filters ---------- */
