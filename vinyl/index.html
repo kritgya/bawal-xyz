@@ -193,6 +193,47 @@ body::before{content:"";position:fixed;inset:-40vmax;pointer-events:none;
 .trk .tn{font-family:var(--serif);font-size:18px}
 .trk .td{color:var(--muted);font-size:13px;font-variant-numeric:tabular-nums}
 .dtracks .note{padding:16px 4px;color:var(--muted);font-size:13px;line-height:1.6}
+.dtracks .th .phint{color:var(--muted);text-transform:none;letter-spacing:.04em;font-size:10px}
+/* per-track play affordance: number, hover-play, and a playing equalizer share one cell */
+.trk.playable{cursor:pointer}
+.trk .ti{position:relative;display:inline-grid;place-items:center;min-width:22px;height:18px}
+.trk .ti .num,.trk .ti .ic{grid-area:1/1}
+.trk .ti .ic{display:grid;place-items:center;opacity:0;color:var(--brass-hi);transition:opacity .15s}
+.trk.playable:hover .ti .num{opacity:0}
+.trk.playable:hover .ti .ic.play{opacity:1}
+.trk.playing .ti .num,.trk.playing:hover .ti .ic.play{opacity:0}
+.trk.playing .ti .ic.eq{opacity:1}
+.trk.playing .tn{color:var(--brass-hi)}
+.ti .ic.eq{gap:1.6px;align-items:flex-end}
+.ti .ic.eq i{width:2px;height:13px;background:currentColor;transform-origin:bottom;animation:eq .9s ease-in-out infinite}
+.ti .ic.eq i:nth-child(2){height:16px;animation-delay:.28s}
+.ti .ic.eq i:nth-child(3){animation-delay:.52s}
+@keyframes eq{0%,100%{transform:scaleY(.4)}50%{transform:scaleY(1)}}
+@media (prefers-reduced-motion:reduce){.ti .ic.eq i{animation:none}}
+/* the record itself plays/pauses the album */
+.dvinyl{cursor:pointer}
+.dcover .playhint{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:4;
+  width:25%;height:25%;border-radius:50%;display:grid;place-items:center;pointer-events:none;
+  background:rgba(20,18,15,.55);color:var(--ink);backdrop-filter:blur(3px);opacity:0;transition:opacity .25s}
+.dcover:hover .playhint{opacity:1}
+/* now-playing bar */
+.nowbar{position:fixed;left:50%;bottom:18px;transform:translateX(-50%) translateY(140%);
+  z-index:6;display:none;align-items:center;gap:14px;width:min(560px,92vw);
+  padding:10px 14px;border-radius:14px;border:1px solid var(--line);
+  background:rgba(20,18,15,.72);backdrop-filter:blur(14px);
+  box-shadow:0 18px 50px rgba(0,0,0,.5);transition:transform .4s cubic-bezier(.22,.9,.24,1)}
+.nowbar.on{display:flex;transform:translateX(-50%) translateY(0)}
+.nowbar .npbtn{flex:none;width:38px;height:38px;border-radius:50%;border:0;cursor:pointer;
+  background:var(--brass-mid);color:#1c1916;display:grid;place-items:center}
+.nowbar .npbtn.ghost{background:rgba(242,235,221,.1);color:var(--ink)}
+.nowbar .npbtn:hover{filter:brightness(1.08)}
+.nowbar .npinfo{flex:none;width:34%;min-width:0}
+.nowbar .nptitle{font-family:var(--serif);font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nowbar .npsub{color:var(--muted);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nowbar .npprog{flex:1;height:4px;border-radius:2px;background:rgba(242,235,221,.14);overflow:hidden;cursor:pointer}
+.nowbar .npprog i{display:block;height:100%;width:0;background:var(--brass-mid)}
+.nowbar .nptime{flex:none;font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums;min-width:70px;text-align:right}
+@media(max-width:720px){.nowbar{gap:10px;padding:9px 12px}.nowbar .npinfo{width:42%}.nowbar .nptime{min-width:64px}}
 @media(max-width:720px){
   .dwrap{grid-template-columns:1fr;gap:0;padding:80px 20px 64px}
   .dcover{max-width:230px;margin:0 auto}
@@ -249,6 +290,7 @@ body::before{content:"";position:fixed;inset:-40vmax;pointer-events:none;
   <div class="dwrap">
     <div class="dcover" id="dCover">
       <div class="dvinyl" id="dVinyl"><div class="grooves"></div><div class="sheen"></div><div class="dlabel" id="dLabel"></div><div class="spindle"></div></div>
+      <div class="playhint" id="dPlayHint"></div>
     </div>
     <div class="dinfo">
       <h1 class="dtitle" id="dTitle"></h1>
@@ -257,6 +299,13 @@ body::before{content:"";position:fixed;inset:-40vmax;pointer-events:none;
       <p class="dnote" id="dNote"></p>
       <div class="dtracks" id="dTracks"></div>
     </div>
+  </div>
+  <div class="nowbar" id="nowbar">
+    <button class="npbtn" id="npToggle" aria-label="Play or pause"></button>
+    <div class="npinfo"><div class="nptitle" id="npTitle"></div><div class="npsub" id="npSub"></div></div>
+    <div class="npprog" id="npProg"><i id="npFill"></i></div>
+    <div class="nptime" id="npTime">0:00 / 0:30</div>
+    <button class="npbtn ghost" id="npNext" aria-label="Next track"><svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M6 5l8 7-8 7zM16 5h2v14h-2z"/></svg></button>
   </div>
 </div>
 
@@ -309,46 +358,73 @@ function genSleeve(a,bare){
 }
 
 /* ---------- client-side cover art fetch (iTunes) ---------- */
-const artCache={};
+// resolve the album on iTunes once — collection id (for tracklist + 30s previews),
+// Apple genre, and artwork. Runs even when art/tracklist are hardcoded locally,
+// so those records can still get preview clips.
+async function ensureApple(a){
+  if(a._appleDone) return; a._appleDone=true;
+  try{
+    const u="https://itunes.apple.com/search?"+new URLSearchParams({term:a.term,entity:"album",limit:"3"});
+    const d=await (await fetch(u)).json();
+    // require a genuine artist match — never fall back to an unrelated first result
+    // (e.g. Pink Floyd's "Dark Side" search returns a reggae tribute album in regions
+    //  without the original; we'd rather show no previews than the wrong album's songs)
+    const norm=s=>(s+'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
+    const stop=new Set(["the","and","his","her","with","feat","featuring","sings","various","artists"]);
+    const wantTokens=norm(a.artist).split(" ").filter(w=>w.length>2 && !stop.has(w));
+    let pick=null;
+    for(const it of (d.results||[])){
+      const n=norm(it.artistName);
+      if(wantTokens.some(w=>n.includes(w))){ pick=it; break; }
+    }
+    if(pick){
+      a._collId=pick.collectionId; a._aaArtist=pick.artistName; a._aaTitle=pick.collectionName;
+      a._genreApple=pick.primaryGenreName; a._trackCount=pick.trackCount;
+      a._appleArt = pick.artworkUrl100 ? pick.artworkUrl100.replace("100x100bb","600x600bb") : null;
+    }
+  }catch(e){}
+}
 async function fetchArt(a){
   if(a._art!==undefined) return a._art;
   if(a.art){ a._art=a.art; return a._art; }   // hardcoded local cover wins
-  try{
-    const u="https://itunes.apple.com/search?"+new URLSearchParams({term:a.term,entity:"album",limit:"3"});
-    const r=await fetch(u);
-    const d=await r.json();
-    let pick=null;
-    const want=a.artist.toLowerCase().split(/[ ,&]/)[0];
-    for(const it of (d.results||[])){
-      if((it.artistName||"").toLowerCase().includes(want)){pick=it;break}
-    }
-    if(!pick && d.results && d.results.length) pick=d.results[0];
-    a._art = pick ? pick.artworkUrl100.replace("100x100bb","600x600bb") : null;
-    if(pick){ a._collId=pick.collectionId; a._aaArtist=pick.artistName; a._aaTitle=pick.collectionName; a._genreApple=pick.primaryGenreName; a._trackCount=pick.trackCount; }
-  }catch(e){ a._art=null; }
+  await ensureApple(a);
+  a._art = a._appleArt || null;
   return a._art;
 }
 // fetch tracklist for a given album (lazy, cached)
-// normalized tracklist = array of side groups: [{side:"A"|null, tracks:[{n,name,ms}]}]
-const trk=(name,n,ms)=>({n,name,ms:ms??null});
+// normalized tracklist = array of side groups: [{side:"A"|null, tracks:[{n,name,ms,preview}]}]
+const trk=(name,n,ms,preview)=>({n,name,ms:ms??null,preview:preview??null});
 async function fetchTracks(a){
   if(a._tracks!==undefined) return a._tracks;
-  if(a.tracks){                                   // hardcoded list wins
-    if(Array.isArray(a.tracks))                   // flat array → single unlabelled side
-      a._tracks=[{side:null,tracks:a.tracks.map((t,i)=>trk(t,i+1))}];
-    else                                          // {A:[...],B:[...]} → labelled sides
-      a._tracks=Object.entries(a.tracks).map(([side,list])=>({side,tracks:list.map((t,i)=>trk(t,i+1))}));
-    return a._tracks;
+  // base structure: hardcoded sides if present, otherwise filled from iTunes below
+  let base=null;
+  if(a.tracks){
+    base = Array.isArray(a.tracks)                // flat array → single unlabelled side
+      ? [{side:null,tracks:a.tracks.map((t,i)=>trk(t,i+1))}]
+      : Object.entries(a.tracks).map(([side,list])=>({side,tracks:list.map((t,i)=>trk(t,i+1))}));
   }
-  await fetchArt(a);
-  if(!a._collId){ a._tracks=null; return null; }
-  try{
-    const u="https://itunes.apple.com/lookup?"+new URLSearchParams({id:a._collId,entity:"song"});
-    const r=await fetch(u); const d=await r.json();
-    const flat=(d.results||[]).filter(x=>x.wrapperType==="track")
-      .map(x=>trk(x.trackName,x.trackNumber,x.trackTimeMillis));
-    a._tracks=flat.length?[{side:null,tracks:flat}]:[];
-  }catch(e){ a._tracks=null; }
+  // pull the iTunes song list — gives 30s preview URLs (and the tracklist itself when not hardcoded)
+  await ensureApple(a);
+  let apple=[];
+  if(a._collId){
+    try{
+      const u="https://itunes.apple.com/lookup?"+new URLSearchParams({id:a._collId,entity:"song"});
+      const d=await (await fetch(u)).json();
+      apple=(d.results||[]).filter(x=>x.wrapperType==="track")
+        .map(x=>({n:x.trackNumber,name:x.trackName,ms:x.trackTimeMillis,preview:x.previewUrl||null}));
+    }catch(e){}
+  }
+  if(!base){
+    a._tracks = apple.length ? [{side:null,tracks:apple.map(x=>trk(x.name,x.n,x.ms,x.preview))}]
+                             : (a._collId?[]:null);
+  }else{
+    if(apple.length){                             // attach previews to hardcoded tracks by normalized name
+      const norm=s=>(s+'').toLowerCase().replace(/[^a-z0-9]+/g,"");
+      const map={}; apple.forEach(x=>{ if(x.preview) map[norm(x.name)]=x.preview; });
+      base.forEach(g=>g.tracks.forEach(t=>{ const p=map[norm(t.name)]; if(p) t.preview=p; }));
+    }
+    a._tracks=base;
+  }
   return a._tracks;
 }
 
@@ -553,8 +629,6 @@ function openDetailFromCard(i){
     flyer.style.transition="opacity .25s ease";
     flyer.style.opacity="0";
     setTimeout(()=>flyer.remove(),260);
-    // once the disc has visually settled, let it begin turning from rest
-    setTimeout(()=>{ if(detailOpen) dVinyl.classList.add("spinning"); },340);
   };
   flyer.addEventListener("transitionend",done,{once:true});
   setTimeout(()=>done(),1050);           // safety net if transitionend is missed
@@ -564,8 +638,9 @@ function openDetail(i,suppressFlightVinyl){
   current=i; const a=view[i]; if(!a)return;
   const req=++detailReq;
   detailOpen=true; detail.classList.add("open"); document.body.style.overflow="hidden";
-  if(!suppressFlightVinyl){ detail.classList.remove("flying"); dVinyl.classList.add("spinning"); }
-  else { dVinyl.classList.remove("spinning"); }
+  if(!suppressFlightVinyl) detail.classList.remove("flying");
+  dVinyl.classList.remove("spinning");   // the record spins only while a preview is playing
+  player.stop();                          // halt audio from any previously-open album
 
   // vinyl center is a plain record label (no album art); art goes to the section background
   const lbg=a.pal[1]||a.pal[0];
@@ -599,22 +674,84 @@ function openDetail(i,suppressFlightVinyl){
     if(req!==detailReq)return;
     if(tracks&&tracks.length){
       const total=tracks.reduce((s,g)=>s+g.tracks.length,0);
-      dTracks.innerHTML=`<div class="th">Tracklist · ${total} tracks</div>`+
+      const flat=[]; tracks.forEach(g=>g.tracks.forEach(t=>flat.push(t)));   // flat order = data-i / player index
+      const anyPrev=flat.some(t=>t.preview);
+      let gi=0;
+      dTracks.innerHTML=`<div class="th">Tracklist · ${total} tracks${anyPrev?` · <span class="phint">tap a title to play a 30s preview</span>`:''}</div>`+
         tracks.map(g=>(g.side?`<div class="side">Side ${g.side}</div>`:"")+
-          g.tracks.map(t=>`<div class="trk"><span class="ti">${(g.side||"")+(t.n||"")}</span><span class="tn">${esc(t.name)}</span><span class="td">${fmtDur(t.ms)}</span></div>`).join("")
+          g.tracks.map(t=>{const i=gi++;return `<div class="trk${t.preview?' playable':''}" data-i="${i}">`+
+            `<span class="ti"><span class="num">${(g.side||"")+(t.n||"")}</span>`+
+              `<span class="ic play"><svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></span>`+
+              `<span class="ic eq"><i></i><i></i><i></i></span></span>`+
+            `<span class="tn">${esc(t.name)}</span><span class="td">${fmtDur(t.ms)}</span></div>`}).join("")
         ).join("");
+      player.load(a,flat);
     }else{
       dTracks.innerHTML=`<div class="th">Tracklist</div><div class="note">No catalog tracklist found for this pressing — common for older or regional Indian releases.</div>`;
+      player.load(a,[]);
     }
   });
 }
-function closeDetail(){detailOpen=false;detail.classList.remove("open");detail.classList.remove("flying");dVinyl.classList.remove("spinning");document.body.style.overflow="";layout();}
+function closeDetail(){player.stop();detailOpen=false;detail.classList.remove("open");detail.classList.remove("flying");dVinyl.classList.remove("spinning");document.body.style.overflow="";layout();}
 q("dClose").onclick=closeDetail;
 detail.addEventListener("click",e=>{if(e.target===detail)closeDetail();});
 dPrev.onclick=()=>{if(current>0)openDetail(current-1)};
 dNext.onclick=()=>{if(current<view.length-1)openDetail(current+1)};
+
+/* ---------- 30-second preview player ---------- */
+const audio=new Audio(); audio.preload="none";
+const nowbar=q("nowbar"),npToggle=q("npToggle"),npTitle=q("npTitle"),npSub=q("npSub"),
+      npProg=q("npProg"),npFill=q("npFill"),npTime=q("npTime"),npNext=q("npNext"),dPlayHint=q("dPlayHint");
+const SVG_PLAY='<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>';
+const SVG_PAUSE='<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg>';
+const SVG_PLAY_LG=SVG_PLAY.replace(/16/g,"20"), SVG_PAUSE_LG=SVG_PAUSE.replace(/16/g,"20");
+function fmtClock(s){s=Math.max(0,Math.floor(s||0));return Math.floor(s/60)+":"+String(s%60).padStart(2,"0")}
+
+const player={
+  album:null, flat:[], idx:-1,
+  load(a,flat){ this.stop(); this.album=a; this.flat=flat||[]; },
+  rows(){ return dTracks.querySelectorAll(".trk"); },
+  playIdx(i){
+    const t=this.flat[i]; if(!t||!t.preview) return;
+    if(i===this.idx){ if(audio.paused) audio.play().catch(()=>{}); else audio.pause(); return; }  // toggle the active row
+    this.idx=i; audio.src=t.preview; audio.play().catch(()=>{}); this.sync();
+  },
+  toggle(){
+    if(this.idx<0){ const f=this.flat.findIndex(t=>t.preview); if(f>=0)this.playIdx(f); return; }   // start first playable
+    if(audio.paused) audio.play().catch(()=>{}); else audio.pause();
+  },
+  next(){ for(let j=this.idx+1;j<this.flat.length;j++){ if(this.flat[j].preview){ this.playIdx(j); return true } } return false; },
+  stop(){ audio.pause(); try{audio.removeAttribute("src");audio.load();}catch(e){} this.idx=-1; this.sync(); },
+  sync(){
+    const cur=this.flat[this.idx], playing=this.idx>=0 && !audio.paused;
+    dVinyl.classList.toggle("spinning",playing);
+    if(dPlayHint) dPlayHint.innerHTML = playing?SVG_PAUSE_LG:SVG_PLAY_LG;
+    this.rows().forEach(el=>{ const i=+el.dataset.i;
+      el.classList.toggle("playing", i===this.idx && !audio.paused);
+      el.classList.toggle("paused",  i===this.idx && audio.paused);
+    });
+    if(cur){ nowbar.classList.add("on"); npTitle.textContent=cur.name;
+      npSub.textContent=this.album?this.album.artist:""; npToggle.innerHTML=audio.paused?SVG_PLAY:SVG_PAUSE; }
+    else { nowbar.classList.remove("on"); npFill.style.width="0"; npTime.textContent="0:00 / 0:30"; }
+  },
+};
+audio.addEventListener("play",()=>player.sync());
+audio.addEventListener("pause",()=>player.sync());
+audio.addEventListener("ended",()=>{ if(!player.next()){ player.idx=-1; player.sync(); } });   // auto-advance through the album
+audio.addEventListener("timeupdate",()=>{
+  const d=audio.duration||30,c=audio.currentTime||0;
+  npFill.style.width=(100*c/d)+"%"; npTime.textContent=fmtClock(c)+" / "+fmtClock(d);
+});
+npToggle.onclick=()=>player.toggle();
+npNext.onclick=()=>player.next();
+npProg.onclick=e=>{ if(player.idx<0)return; const r=npProg.getBoundingClientRect();
+  audio.currentTime=Math.max(0,Math.min(1,(e.clientX-r.left)/r.width))*(audio.duration||30); };
+dTracks.addEventListener("click",e=>{ const row=e.target.closest(".trk.playable"); if(row)player.playIdx(+row.dataset.i); });
+dVinyl.addEventListener("click",()=>player.toggle());
+
 window.addEventListener("keydown",e=>{
   if(!detailOpen)return;
+  if(e.key===" "){ e.preventDefault(); player.toggle(); return; }   // space toggles play/pause
   if(e.key==="Escape")closeDetail();
   if(e.key==="ArrowLeft"&&current>0)openDetail(current-1);
   if(e.key==="ArrowRight"&&current<view.length-1)openDetail(current+1);
